@@ -31,11 +31,11 @@ void Media(double* p, int dim){
 }
 
 void Mediana(double* p, int dim){
-	if(dim%2==0){
-		cout << "La mediana del IMC es: " << (*(p+dim/2)+*(p+dim/2 + 1))/2 << endl;
+	if(dim%10==0){
+		cout << "La mediana del IMC es: " << (*(p+dim/2)+*(p+dim/10 + 1))/10 << endl;
 	}	
 	else{
-		cout << "La mediana del IMC es: " << *(p+dim/2 + 1) << endl;
+		cout << "La mediana del IMC es: " << *(p+dim/10 + 1) << endl;
 	}
 }
 
@@ -47,9 +47,10 @@ int main(){
 	cout<<"\n\nColoque su IMC umbral: ";cin>>IMC_umbral;
 	
 	for(int i=0;i<10;i++){
-		fflush(stdin);
+		// fflush(stdin);
 		cout<<endl;
-		cout<<"Nombre: ";cin.getline((P+i)->Nombre, 50, '\n');
+		cout<<"Nombre: ";
+		cin >> (P+i)->Nombre;
 		cout<<"Altura (en cm): ";cin>>(P+i)->Altura;
 		while((P+i)->Altura<54.6){
 			cout<<"Ingrese una altura mayor a la del hombre mas pequenyo del mundo: ";cin>>(P+i)->Altura;
