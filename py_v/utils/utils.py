@@ -1,12 +1,15 @@
+import sys
+from importlib import reload
 from pathlib import Path
-from typing import TypeVar, TypeAlias
+from typing import TypeVar, TypeAlias, Callable
+import time
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
 
 T_ = TypeVar("T_")
 SingleOrList: TypeAlias = list[T_] | T_
+F = TypeVar('F', bound=Callable)
 
 
 def fetch_dfs(
@@ -43,7 +46,6 @@ def fetch_dfs(
     if not datadir.exists():
         raise ValueError(f"Directory '{datadir}' does not exist.")
 
-
     if not isinstance(fnames, list):
         fnames = [fnames]
 
@@ -55,3 +57,8 @@ def fetch_dfs(
 
     return res
 
+
+def funcreload(func: F) -> F:
+    module_str = func.__module__
+    module = reload(sys.modules[module_str])
+    return getattr(module, func.__name__)
