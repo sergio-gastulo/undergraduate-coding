@@ -3,3 +3,4 @@
 unnamed
 .venv/
 py_v/data/
+**/__pycache__/**
