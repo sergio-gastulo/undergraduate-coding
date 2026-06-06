@@ -2,14 +2,13 @@ import sys
 from importlib import reload
 from pathlib import Path
 from typing import TypeVar, TypeAlias, Callable
-import time
 
 import pandas as pd
 
-
-T_ = TypeVar("T_")
-SingleOrList: TypeAlias = list[T_] | T_
-F = TypeVar('F', bound=Callable)
+from .typing import (
+    SingleOrList, 
+    F
+)
 
 
 def fetch_dfs(

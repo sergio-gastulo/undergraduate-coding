@@ -3,6 +3,8 @@ import time
 
 import numpy as np
 
+from .visualization import list_plot
+
 
 def _get_timer(
         how: Literal['perf', 'proc'] = 'perf',
@@ -88,8 +90,8 @@ def map_timeit(
     array([[0.5002884, 0.5003938, 0.5005349],
         [0.2001706, 0.2001238, 0.2003273]])
     """
-    if not isinstance(processes, list):
-        raise TypeError("Argument 'processes' should be a list.")
+    if not isinstance(processes, list) or not isinstance(processes[0], Callable):
+        raise TypeError("Argument 'processes' should be a list of Callables.")
     
     res = np.array([timeit(proc, n, **kwargs) 
                     for proc in processes])
