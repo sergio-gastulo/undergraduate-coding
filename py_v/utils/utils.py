@@ -1,7 +1,6 @@
 import sys
 from importlib import reload
 from pathlib import Path
-from typing import TypeVar, TypeAlias, Callable
 
 import pandas as pd
 
@@ -58,6 +57,60 @@ def fetch_dfs(
 
 
 def funcreload(func: F) -> F:
+    """
+    Reload a function to retrieve latest changes.
+    """
     module_str = func.__module__
     module = reload(sys.modules[module_str])
     return getattr(module, func.__name__)
+
+
+def dl_to_ld(
+        d: dict[str, list]
+) -> SingleOrList[dict[str, str]]:
+    """
+    Convert a dictionary of lists to a lists of dictionaries. If the dictionary
+    contains no list, the dictionary itself is returned.
+
+    Arguments
+    ---------
+    d
+        The dictionary of list to be converted.
+
+    Examples
+    --------
+    >>> dl = {'a': [0, 1], 'b': [2, 3]}
+    >>> dl_to_ld(dl)
+    [{'a': 0, 'b': 2}, {'a': 1, 'b': 3}]
+    >>> dl = {'a': [0, 1], 'b': [2, 3], 'c': 1}
+    >>> dl_to_ld(dl)
+    [{'a': 0, 'b': 2, 'c': 1}, {'a': 1, 'b': 3, 'c': 1}]
+    >>> dl = {'s': 10, 'zorder': 2, 'label': 'Numerical'}
+    >>> dl_to_ld(dl)
+    {'s': 10, 'zorder': 2, 'label': 'Numerical'}
+    """
+
+    single_keys = []
+    lens = []
+    for key, value in d.items():
+        if isinstance(value, list):
+            lens.append(len(value))
+        else:
+            single_keys.append(key)
+    if not lens:
+        # if all keys in the dictionary are simple key: val, return the 
+        # dictionary directly
+        return d
+    
+    n = min(lens)
+    if n != max(lens):
+        raise TypeError(
+            "At least two lists in the dictionary have different length."
+        )
+    else:
+        for key in single_keys:
+            # map key: val to key: [val, val, ...]
+            d[key] = [d[key]] * n
+
+    # https://stackoverflow.com/a/33046935/29272030
+    return [dict(zip(d,t)) for t in zip(*d.values())]

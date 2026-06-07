@@ -5,10 +5,15 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 from matplotlib.axes import Axes
-from matplotlib.typing import ColorType
 
-from .utils import SingleOrList
-from .typing import PercentileType, DomainType
+from .utils import SingleOrList, dl_to_ld
+from .typing import (
+    PercentileType, 
+    RescaleType, 
+    ODESolution1D,
+    DomainType
+)
+
 
 
 def matrix_plot(
@@ -85,7 +90,7 @@ def matrix_diff_plot(
 
 def get_domain(
         dim: int,
-        rescale: DomainType,
+        rescale: RescaleType,
 ) -> np.ndarray:
     
     if isinstance(rescale, np.ndarray):
@@ -130,9 +135,8 @@ def _validate_listplot_data(
 
 def list_plot(
         x: SingleOrList[np.ndarray],
-        rescale: Optional[DomainType] = None,
+        rescale: Optional[RescaleType] = None,
         how: Literal['plot', 'scatter'] = 'plot',
-        ylim: list[int, int] = None,
         lkwargs: list[dict[str, Any]] = None,
 ) -> tuple[Figure, Axes]:
     """
@@ -175,16 +179,84 @@ def list_plot(
             for arr, kwargs in zip(x, lkwargs):
                 plotter(arr, **kwargs)
     
-    if ylim:
-        ax.set_ylim(ylim)
-    
     return fig, ax
+
+
+def _core_plot_kwargs(
+        method: Callable,
+        x: np.ndarray,
+        y: np.ndarray,
+        kwargs: dict,
+        /,
+) -> None:
+    """Handle kwargs when `ax.plot|scatter`'ing."""
+        
+    if y.ndim == 1:
+        method(x, y, **kwargs)
+    elif y.ndim == 2:
+        as_ld = dl_to_ld(kwargs)
+        if isinstance(as_ld, dict):
+            for arr in y:
+                method(x, arr, **kwargs)
+        else:
+            for arr, kwarg in zip(y, as_ld):
+                method(x, arr, **kwarg)
+    else:
+        raise ValueError(
+            f"Only 1D/2D plotting is supported. Got the arrays"
+            f"with the shapes: '{x.shape=}', '{y.shape=}'."
+        )
+
+
+def map_plot(
+        func: ODESolution1D,
+        dom: DomainType,
+        /,
+        ax: Optional[Axes] = None,
+        **kwargs,
+) -> Axes:
+    if isinstance(dom, list):
+        dom = np.linspace(*dom)
+    if not ax:
+        _, ax = plt.subplots()
+    
+    _core_plot_kwargs(
+        ax.plot, 
+        dom, 
+        func(dom), 
+        kwargs
+    )
+    return ax
+
+
+def map_scatter(
+        x: np.ndarray,
+        y: np.ndarray,
+        /,
+        ax: Optional[Axes] = None,
+        **kwargs
+) -> tuple[Figure, Axes]:
+    
+    n, = x.shape
+    try:
+        _, m = y.shape
+    except ValueError:
+        m, = y.shape
+    if n != m:
+        raise ValueError(
+            "Can't plot arrays with missmatching dimensions:"
+            f"{x.shape=} and {y.shape=}."
+        )
+    if not ax:
+        _, ax = plt.subplots()
+    _core_plot_kwargs(ax.scatter, x, y, kwargs)
+    return ax
 
 
 def continuum_discretized_plot(
         dom: np.ndarray,
         solution: Callable,
-        discretized: np.ndarray,
+        discretized: np.ndarray | list[np.ndarray, np.ndarray],
 ) -> tuple[Figure, Axes]:
     """
     Plot a continous function against it's discretization obtained by a given 
@@ -200,7 +272,11 @@ def continuum_discretized_plot(
     discretized
         Scatter points in (x, y) coordinates stored in a numpy.ndarray. It can
         be passed as a (2, n) or (n, 2) numpy.ndarray.
+
     """
+
+    if isinstance(discretized, list):
+        discretized = np.array(discretized)
 
     # check that discretized is a np.array of the form (2, data) or (data, 2)
     n, m = discretized.shape
@@ -221,3 +297,6 @@ def continuum_discretized_plot(
     ax.legend()
 
     return fig, ax
+
+
+#TODO: code a custom macro to set nice title for scientific papers
