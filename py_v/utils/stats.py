@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterator
 
 import numpy as np
 import pandas as pd
@@ -11,41 +11,40 @@ from .typing import (
 
 def _percentile(p: int) -> StatisticsNumpyFunction:
     def f(x: np.ndarray) -> np.float64:
-        return np.percentile(x, p)
+        return np.percentile(x, p, axis=1)
     return f
 
 
 def _parse_stat(
         stat: SingleOrList[int | str]
-) -> dict[str, StatisticsNumpyFunction] | tuple[str, StatisticsNumpyFunction]:
+) -> Iterator[str, StatisticsNumpyFunction] | tuple[str, StatisticsNumpyFunction]:
 
     if isinstance(stat, list):
-        return dict(map(_parse_stat, stat))
+        return map(_parse_stat, stat)
 
     if isinstance(stat, int):
         label = f"p_{stat}"
         return label, _percentile(stat)
     
-    return stat, getattr(np, stat)
+    def statf(x: np.ndarray) -> np.ndarray:
+        func = getattr(np, stat)
+        return func(x, axis=1)
+
+    return stat, statf
 
 
-# TODO: migrate to pandas to use df.to_markdown()
-def pprint_stats(
-    x: np.ndarray,
+def stats_df(
+    x: SingleOrList[np.ndarray],
     stats: Optional[list[str]] = None,
-    *, 
-    prec: int = 3,
-) -> None:
+) -> pd.DataFrame:
     """
-    Pretty print basic stats related to a given vector: min, p50 (median), 
-    mean, p95, max.
+    Construct a DataFrame reporting the min, max, mean, median (p50) and p95 for 
+    each row of the 2D-array-like argument `x`.
 
     Arguments
     ---------
     x
-        The array in question
-    prec
-        Floating point precision for printing the statistics: `f"{x:.{prec}e}"`.
+        2D array on which the stastisticals functions will be mapped to.
     stats
         List of *additional* statistics to pretty-print. It must exist under the
         convention f'np.{stat}'. Integers are supported and are converted to 
@@ -54,53 +53,32 @@ def pprint_stats(
     Examples
     --------
     >>> import numpy as np
-    >>> x = np.arange(0,1,0.1)
+    >>> x = np.random.randn(3, 10)
     >>> pprint_stats(x)
-    ------------------------
-    Statistics
-    ------------------------
-    min   |  0.00e+00
-    mean  |  4.50e-01
-    p_50  |  4.50e-01
-    p_95  |  8.55e-01
-    max   |  9.00e-01
-    ------------------------
-    >>> pprint_stats(x, ["std", 60])
-    ------------------------
-    Statistics
-    ------------------------
-    min   |  0.00e+00
-    mean  |  4.50e-01
-    p_50  |  4.50e-01
-    p_95  |  8.55e-01
-    max   |  9.00e-01
-    std   |  2.87e-01
-    p_60  |  5.40e-01
-    ------------------------
-    >>> pprint_stats(x, 5, ["std"])
-    ------------------------
-    Statistics
-    ------------------------
-    min   |  0.00000e+00
-    mean  |  4.50000e-01
-    p_50  |  4.50000e-01
-    p_95  |  8.55000e-01
-    max   |  9.00000e-01
-    std   |  2.87228e-01
-    ------------------------
+            min      mean      p_50      p_95       max
+    0 -1.696715  0.434434  0.438967  1.619619  1.702160
+    1 -0.773983  0.305247  0.016222  1.831369  1.914967
+    2 -1.210344 -0.050692 -0.352881  1.383726  1.525139
+    >>> pprint_stats(x, [60, "std"])   
+            min      mean      p_50      p_95       max      p_60       std
+    0 -1.696715  0.434434  0.438967  1.619619  1.702160  1.042889  1.083228
+    1 -0.773983  0.305247  0.016222  1.831369  1.914967  0.132857  0.832727
+    2 -1.210344 -0.050692 -0.352881  1.383726  1.525139 -0.003831  0.890660
     """
+    
+    if isinstance(x, list):
+        x = np.array(x)
+    if x.ndim != 2:
+        raise ValueError("Support for 2D arrays only.")
 
     statistics = ["min", "mean", 50, 95, "max"]
     if stats:
-        statistics = [*statistics, *stats]
+        # show interesting stats first
+        statistics = [*stats, *statistics]
 
-    print("-" * 24)
-    print("Statistics")
-    print("-" * 24)
-
-    w = max(len(s) for s in statistics if isinstance(s, str))
-    label_stats = _parse_stat(statistics)
-    for label, stat in label_stats.items():
-        print(f"  {label:<{w}}  |  {stat(x):.{prec}}")
-
-    print("-" * 24)
+    df = pd.DataFrame({
+        label: statf(x)
+        for label, statf in _parse_stat(statistics)
+    })
+    return df
+    

@@ -1,4 +1,4 @@
-from typing import Optional, TypeAlias, Any, Literal
+from typing import Optional, Any, Literal, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,14 +7,8 @@ from matplotlib.image import AxesImage
 from matplotlib.axes import Axes
 from matplotlib.typing import ColorType
 
-try:
-    from utils import SingleOrList
-except ImportError:
-    from .utils import SingleOrList
-
-
-PercentileType = list[int]
-DomainType: TypeAlias = list[int, int] | np.ndarray
+from .utils import SingleOrList
+from .typing import PercentileType, DomainType
 
 
 def matrix_plot(
@@ -116,7 +110,7 @@ def _check_same_dims(
             raise ValueError("Lists of np.arrays 'x' do not agree in shape.")
     
 
-def validate_plot_data(
+def _validate_listplot_data(
         x: Any,
 ) -> None:
     """
@@ -160,20 +154,20 @@ def list_plot(
         `ax.plot` called. Must be of the same size as `x`
     """
 
-    validate_plot_data(x)
-    if isinstance(x, list):
-        dimx, _ = x[0].shape
-    if isinstance(x, np.ndarray):
-        _, dimx = x.shape
-
+    _validate_listplot_data(x)
     fig, ax = plt.subplots()
     plotter = getattr(ax, how)
     
     if rescale:
+        if isinstance(x, list):
+            dimx, _ = x[0].shape
+        if isinstance(x, np.ndarray):
+            _, dimx = x.shape
         dom = get_domain(dimx, rescale)
         for arr, kwargs in zip(x, lkwargs):
             plotter(dom, arr, **kwargs)
         ax.set_xlim([dom.min(), dom.max()])
+    
     else:
         if isinstance(arr, np.ndarray) and not lkwargs:
             plotter(arr.T)
@@ -184,4 +178,46 @@ def list_plot(
     if ylim:
         ax.set_ylim(ylim)
     
+    return fig, ax
+
+
+def continuum_discretized_plot(
+        dom: np.ndarray,
+        solution: Callable,
+        discretized: np.ndarray,
+) -> tuple[Figure, Axes]:
+    """
+    Plot a continous function against it's discretization obtained by a given 
+    numerical method. Useful for plotting exact solutions vs ODE / integration 
+    methods.
+
+    Arguments
+    ---------
+    dom
+        Domain for which `solution` will be applied to discretize.
+    solution
+        The function to be plotted via `Axes.plot`.
+    discretized
+        Scatter points in (x, y) coordinates stored in a numpy.ndarray. It can
+        be passed as a (2, n) or (n, 2) numpy.ndarray.
+    """
+
+    # check that discretized is a np.array of the form (2, data) or (data, 2)
+    n, m = discretized.shape
+    if 2 not in [n, m]:
+        raise ValueError(
+            "Only a (2, n) or (n, 2) array is allowed as a discretized domain.")
+
+    fig, ax = plt.subplots()
+    ax.plot(dom, solution(dom), label="Analytical")
+    if n == 2:
+        ax.scatter(*discretized, label="Numerical", color='red')
+    else:
+        ax.scatter(*discretized.T, label="Numerical", color='red')
+
+    fig.suptitle("Numerical vs. Analytical Solution")
+    ax.set_xlabel("$t$")
+    ax.set_ylabel(f"${solution.__name__}(t)$")
+    ax.legend()
+
     return fig, ax
