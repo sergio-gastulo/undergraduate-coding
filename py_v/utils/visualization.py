@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 from matplotlib.axes import Axes
+from matplotlib import rcParams
 
 from .utils import SingleOrList, dl_to_ld
 from .typing import (
@@ -13,7 +14,23 @@ from .typing import (
     ODESolution1D,
     DomainType
 )
+from .colors import ax_lighten
 
+
+def init() -> None:
+    rcParams['text.usetex'] = True
+    rcParams['font.family'] = 'serif'
+    rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
+
+
+def latex_float(
+        f: float, 
+        prec: int = 2
+) -> str:
+    float_str = f"{f:.{prec}e}"
+    base, exponent = float_str.split('e')
+    latex = f"{base} \\cdot 10^{{{exponent}}}"
+    return latex
 
 
 def matrix_plot(
@@ -36,7 +53,9 @@ def matrix_plot(
     """
 
     i, j = percentiles
-    pi, pj = np.percentile(mat, percentiles)
+    pi, pj, max = np.percentile(mat, [*percentiles, 100])
+    
+    mean = np.mean(mat)
     fig, ax = plt.subplots()
     im = ax.imshow(
         mat, 
@@ -45,16 +64,14 @@ def matrix_plot(
         aspect='auto',
         **kwargs,
     )
-    title = (
-        f"Statistics:"
-        f"\nmax = {np.max(mat):.2e}"
-        f"\nmean = {np.mean(mat):.2e}"
-        f"\np{i} = {pi:.2e}"
-        f"\np{j} = {pj:.2e}"
-    )
+    xlabel = f"Stats: \
+        $p_{{{i}}}={latex_float(pi)}$, \
+        $\\mathrm{{mean}}={latex_float(mean)}$, \
+        $p_{{{j}}}={latex_float(pj)}$, \
+        $\\mathrm{{max}}={latex_float(max)}$."
+    
     fig.suptitle("Matrix plot")
-    fig.supxlabel(title, x=0.5, fontsize=10, ha='center')
-    fig.tight_layout(rect=[0, 0.1, 1, 0.95])
+    fig.supxlabel(xlabel, ha='center')
     return fig, im
 
 
@@ -79,12 +96,12 @@ def matrix_diff_plot(
         )
 
     mabs = np.abs(mat1 - mat2)
-    fig, im = matrix_plot(mabs, 
-                          percentiles, 
-                          cmap=plt.get_cmap('hot'), 
-                          **kwargs)
+    fig, im = matrix_plot(
+        mabs, percentiles, 
+        cmap=plt.get_cmap('hot'), **kwargs
+    )
     fig.colorbar(im)
-    fig.suptitle("Plot: np.abs(mat1 - mat2)")
+    fig.suptitle(r"$\|A_1 - A_2\|_2$")
     return fig
 
 
@@ -253,50 +270,62 @@ def map_scatter(
     return ax
 
 
-def continuum_discretized_plot(
-        dom: np.ndarray,
-        solution: Callable,
-        discretized: np.ndarray | list[np.ndarray, np.ndarray],
+def compare_numerical(
+        fcontinuous: ODESolution1D,
+        domain: DomainType,
+        x: np.ndarray,
+        y: np.ndarray,
+        /,
+        variable: str = "t",
+        lighten: float = 0.3,
+        labels: Optional[SingleOrList[str]] = None,
+        colors: Optional[SingleOrList[str]] = None,
 ) -> tuple[Figure, Axes]:
     """
-    Plot a continous function against it's discretization obtained by a given 
-    numerical method. Useful for plotting exact solutions vs ODE / integration 
-    methods.
+    Plot a continous function on a domain and scatter it's discretization (x, 
+    y) on the same axis.
 
     Arguments
     ---------
-    dom
-        Domain for which `solution` will be applied to discretize.
-    solution
-        The function to be plotted via `Axes.plot`.
-    discretized
-        Scatter points in (x, y) coordinates stored in a numpy.ndarray. It can
-        be passed as a (2, n) or (n, 2) numpy.ndarray.
+    fcontinous
+        A continuous map f: R -> R^n.
+    domain
+        A valid domain: [a, b, npoints] or it's own np.ndarray (f will be 
+        evaluated here).
+    x, y
+        Points to be scatterd on the axis.
+    variable
+        What is the variable name of fcontinuous.
+    lighten
+        Factor to pass to `ax_lighten`.
+    labels
+        List of labels that are going to be passed to each ax.get_lines(), 
+        respectively. 
+    colors
+        List of labels that are going to be passed to each ax.get_lines(), 
+        respectively. 
 
+    Returns
+    -------
+    fig, ax
+        As a simple plt.subplots()
     """
 
-    if isinstance(discretized, list):
-        discretized = np.array(discretized)
-
-    # check that discretized is a np.array of the form (2, data) or (data, 2)
-    n, m = discretized.shape
-    if 2 not in [n, m]:
-        raise ValueError(
-            "Only a (2, n) or (n, 2) array is allowed as a discretized domain.")
-
     fig, ax = plt.subplots()
-    ax.plot(dom, solution(dom), label="Analytical")
-    if n == 2:
-        ax.scatter(*discretized, label="Numerical", color='red')
-    else:
-        ax.scatter(*discretized.T, label="Numerical", color='red')
-
-    fig.suptitle("Numerical vs. Analytical Solution")
-    ax.set_xlabel("$t$")
-    ax.set_ylabel(f"${solution.__name__}(t)$")
+    map_plot(
+        fcontinuous, domain, ax, 
+        label=labels, color=colors
+    )
+    map_scatter(
+        x, y, ax, 
+        s=10, zorder=2, color=colors
+    )
+    
+    # provide some style
+    ax_lighten(ax, lighten)
     ax.legend()
+    ax.set_xlabel(variable)
+    ax.grid(True)
+    fig.suptitle("Numerical (•) vs Exact solution")
 
     return fig, ax
-
-
-#TODO: code a custom macro to set nice title for scientific papers

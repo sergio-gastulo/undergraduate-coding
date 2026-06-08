@@ -81,4 +81,3 @@ def stats_df(
         for label, statf in _parse_stat(statistics)
     })
     return df
-    
