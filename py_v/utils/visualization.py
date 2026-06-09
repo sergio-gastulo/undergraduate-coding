@@ -10,14 +10,19 @@ from matplotlib import rcParams
 from .utils import SingleOrList, dl_to_ld
 from .typing import (
     PercentileType, 
-    RescaleType, 
+    DomainType, 
     ODESolution1D,
-    DomainType
+    NumpyVector,
+    NumpyMatrix,
+    PltSubplotsType,
 )
 from .colors import ax_lighten
 
 
 def init() -> None:
+    """Set initial configurations for better plotting"""
+
+    plt.style.use('dark_background')
     rcParams['text.usetex'] = True
     rcParams['font.family'] = 'serif'
     rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
@@ -27,6 +32,7 @@ def latex_float(
         f: float, 
         prec: int = 2
 ) -> str:
+    """Convert a float into its latex representation base \\cdot 10^exp."""
     float_str = f"{f:.{prec}e}"
     base, exponent = float_str.split('e')
     latex = f"{base} \\cdot 10^{{{exponent}}}"
@@ -34,10 +40,10 @@ def latex_float(
 
 
 def matrix_plot(
-        mat: np.ndarray,
-        percentiles: PercentileType,
+        mat: NumpyMatrix,
+        percentiles: PercentileType = None,
         **kwargs,
-) -> tuple[Figure, AxesImage]:
+) -> PltSubplotsType:
     """
     Plot a matrix, clipping the colormap range to i-th and j-th percentile 
     to reduce distortion.
@@ -45,16 +51,19 @@ def matrix_plot(
     Arguments
     ---------
     mat
-        The numpy.array to be plotted.
+        The `numpy.ndarray` of depth 2 to be plotted (not type-checked).
     percentiles
-        The percentiles to clip the range
+        The percentiles to clip the range. If `None` is provided, no statistical
+        information is shown on the plot.
     kwargs
-        Passed to `matplotlib.axes.Axes.imshow`.
+        Directly passed to `matplotlib.axes.Axes.imshow`.
     """
 
-    i, j = percentiles
-    pi, pj, max = np.percentile(mat, [*percentiles, 100])
-    
+    if percentiles is not None:
+        i, j = percentiles
+        pi, pj = np.percentile(mat, percentiles)
+    else:
+        pi = pj = None
     mean = np.mean(mat)
     fig, ax = plt.subplots()
     im = ax.imshow(
@@ -64,63 +73,67 @@ def matrix_plot(
         aspect='auto',
         **kwargs,
     )
-    xlabel = f"Stats: \
-        $p_{{{i}}}={latex_float(pi)}$, \
-        $\\mathrm{{mean}}={latex_float(mean)}$, \
-        $p_{{{j}}}={latex_float(pj)}$, \
-        $\\mathrm{{max}}={latex_float(max)}$."
-    
-    fig.suptitle("Matrix plot")
-    fig.supxlabel(xlabel, ha='center')
-    return fig, im
+    if percentiles:
+        xlabel = f"Stats: \
+            $p_{{{i}}}={latex_float(pi)}$, \
+            $\\mathrm{{mean}}={latex_float(mean)}$, \
+            $p_{{{j}}}={latex_float(pj)}$"
+        fig.supxlabel(xlabel, ha='center')
+
+    fig.colorbar(im)
+    fig.suptitle("Matrix Plot")
+    return fig, ax
 
 
 def matrix_diff_plot(
-        mat1: np.ndarray,
-        mat2: np.ndarray,
+        mat1: NumpyMatrix,
+        mat2: NumpyMatrix,
         percentiles: PercentileType,
         **kwargs,
-) -> Figure:
+) -> PltSubplotsType:
     """
     Arguments
     ---------
     mat1, mat2
-        `numpy.array`s with same shape (`ValueError` raised otherwise).
+        `numpy.ndarray`s with same shape (`ValueError` raised otherwise).
     kwargs
         Key-word arguments passed to `mat_plot`.
     """
 
     if mat1.shape != mat2.shape: 
         raise ValueError(
-            f"Different shapes {mat1.shape} and {mat2.shape}: can't substract."
+            f"Different shapes {mat1.shape} and {mat2.shape} found."
         )
 
     mabs = np.abs(mat1 - mat2)
-    fig, im = matrix_plot(
+    fig, ax = matrix_plot(
         mabs, percentiles, 
         cmap=plt.get_cmap('hot'), **kwargs
     )
-    fig.colorbar(im)
-    fig.suptitle(r"$\|A_1 - A_2\|_2$")
-    return fig
+    i, *_, j = percentiles
+    title = f"Elementwise Difference " \
+            f"$\\|A_1 - A_2\\|_2$ " \
+            f"(Clipped to $[p_{{{i}}},\\, p_{{{j}}}]$)"
+    fig.suptitle(title)
+    return fig, ax
 
 
 def get_domain(
         dim: int,
-        rescale: RescaleType,
-) -> np.ndarray:
+        domain: DomainType,
+) -> NumpyVector:
     
-    if isinstance(rescale, np.ndarray):
-        dimdom, = rescale.shape
-        if dim == dimdom:
-            return rescale 
-        raise ValueError("Domain and array do not have the same length.")
+    if isinstance(domain, list):
+        linspace = np.linspace(*domain)
+        return linspace
 
-    try:
-        min_, max_ = rescale
-    except TypeError:
-        raise ValueError(f"Could not unpack (min, max) from {rescale}.")
-    return np.linspace(min_, max_, dim)
+    n_domain, = domain.shape
+    if dim == n_domain:
+        return domain 
+    raise ValueError(
+        f"Domain and array do not have the same length: {dim=}, {n_domain=}."
+    )
+
 
 
 def _check_same_dims(
@@ -152,10 +165,10 @@ def _validate_listplot_data(
 
 def list_plot(
         x: SingleOrList[np.ndarray],
-        rescale: Optional[RescaleType] = None,
+        rescale: Optional[DomainType] = None,
         how: Literal['plot', 'scatter'] = 'plot',
         lkwargs: list[dict[str, Any]] = None,
-) -> tuple[Figure, Axes]:
+) -> PltSubplotsType:
     """
     Plot or scatter a list of `numpy.ndarray` or a 2D `numpy.ndarray` and 
     rescale its domain or join them if needed.
@@ -199,18 +212,38 @@ def list_plot(
     return fig, ax
 
 
-def _core_plot_kwargs(
+def coreplot_kwargs(
         method: Callable,
-        x: np.ndarray,
-        y: np.ndarray,
+        x: NumpyVector,
+        y: NumpyVector | NumpyMatrix,
         kwargs: dict,
         /,
 ) -> None:
-    """Handle kwargs when `ax.plot|scatter`'ing."""
+    """
+    Handle kwargs for `ax.plot` or `ax.scatter` and plot.
+
+    Arguments
+    ---------
+    method
+        The function call to plot.
+    x, 
+        The X axis data.
+    y
+        Data to be plotted | scattered against `x`. 
+    kwargs
+        Key-value arguments passed as *dictionary*, they're parsed via 
+        `dl_to_ld`.
+
+    Notes
+    -----
+    * Not a single type-check. All type-checks must be performed out of this 
+    function (hence the `core` prefix).
+    """
         
     if y.ndim == 1:
         method(x, y, **kwargs)
-    elif y.ndim == 2:
+        return
+    if y.ndim == 2:
         as_ld = dl_to_ld(kwargs)
         if isinstance(as_ld, dict):
             for arr in y:
@@ -218,11 +251,51 @@ def _core_plot_kwargs(
         else:
             for arr, kwarg in zip(y, as_ld):
                 method(x, arr, **kwarg)
-    else:
-        raise ValueError(
-            f"Only 1D/2D plotting is supported. Got the arrays"
-            f"with the shapes: '{x.shape=}', '{y.shape=}'."
+        return
+    
+    raise ValueError(
+        f"Only 1D/2D plotting is supported. Got higher dimensional array:"
+        f"{y.shape}."
+    )
+
+
+def validate_plottable(
+        x: NumpyVector,
+        y: NumpyVector | NumpyMatrix,
+) -> tuple[NumpyVector, NumpyVector | NumpyMatrix]:
+    """
+    Check that x, y have plottable dimensions. Returns x, y moved properly 
+    formatted.
+
+    Arguments
+    ---------
+    x
+        A 1D `numpy.ndarray`.
+    y
+        A 1D or 2D `numpy.ndarray`. If the former, then `x` and `y` must have 
+        the same shape. If the latter, then the number of columns or rows of `y`
+        must have the same length as `x`. If the same number of rows is checked,
+        then `y` is transposed.
+    """
+    if not (isinstance(x, np.ndarray) and isinstance(y, np.ndarray)):
+        raise TypeError(
+            f"Can't plot non-NumPy arrays. Got: {type(x)=}, {type(y)=}."
         )
+
+    n, *_ = x.shape
+    *rows, cols = y.shape
+    check_depth = (x.ndim == 1) and (y.ndim in frozenset((1, 2)))
+    if check_depth:
+        if n == cols:
+            return x, y
+        elif n == rows[0]:
+            # will this raise unwanted bugs?
+            return x, y.T
+    
+    raise ValueError(
+        "Can't plot arrays with missmatching dimensions: "
+        f"{x.shape=} and {y.shape=}."
+    )
 
 
 def map_plot(
@@ -232,78 +305,109 @@ def map_plot(
         ax: Optional[Axes] = None,
         **kwargs,
 ) -> Axes:
+    """
+    Plot `func`: R -> R^n evaluated on a domain `dom`.
+    
+    Arguments
+    ---------
+    func
+        Function that will be evaluated via `func(dom)`. This output is later
+        compared against `dom` for dimensionality checks via 
+        `validate_plottable`.
+    dom
+        Domain specification. It is later converted into a `np.linspace` via 
+        `get_domain`.
+    ax
+        Optional. If `None` is provided then one is created with `plt.subplots`.
+    """
     if isinstance(dom, list):
         dom = np.linspace(*dom)
     if not ax:
         _, ax = plt.subplots()
     
-    _core_plot_kwargs(
+    discretized = func(dom)
+    dom, discretized = validate_plottable(dom, discretized)
+    
+    coreplot_kwargs(
         ax.plot, 
-        dom, 
-        func(dom), 
+        dom,
+        discretized, 
         kwargs
     )
     return ax
 
 
 def map_scatter(
-        x: np.ndarray,
-        y: np.ndarray,
+        x: NumpyVector,
+        y: NumpyVector | NumpyMatrix,
         /,
         ax: Optional[Axes] = None,
         **kwargs
-) -> tuple[Figure, Axes]:
-    
-    n, = x.shape
-    try:
-        _, m = y.shape
-    except ValueError:
-        m, = y.shape
-    if n != m:
-        raise ValueError(
-            "Can't plot arrays with missmatching dimensions:"
-            f"{x.shape=} and {y.shape=}."
-        )
+) -> PltSubplotsType:
+    """
+    Plot a 1D vector against a 1D or 2D array.
+
+    Arguments
+    ---------
+    x
+        A 1D `numpy.ndarray`.
+    y
+        A 1D or 2D `numpy.ndarray`. If the former, then `x` and `y` must have 
+        the same shape. If the latter, then the number of columns of `y` must 
+        have the same length as `x`. 
+    ax
+        Optional. If `None` is provided then one is created with `plt.subplots`.
+    kwargs
+        Key-value arguments passed to `coreplot_kwargs`. 
+    """
     if not ax:
         _, ax = plt.subplots()
-    _core_plot_kwargs(ax.scatter, x, y, kwargs)
+    x, y = validate_plottable(x, y)
+    coreplot_kwargs(ax.scatter, x, y, kwargs)
     return ax
 
 
 def compare_numerical(
         fcontinuous: ODESolution1D,
         domain: DomainType,
-        x: np.ndarray,
-        y: np.ndarray,
+        x: NumpyVector,
+        y: NumpyMatrix,
         /,
-        variable: str = "t",
+        xlabel: str = "t",
         lighten: float = 0.3,
         labels: Optional[SingleOrList[str]] = None,
         colors: Optional[SingleOrList[str]] = None,
-) -> tuple[Figure, Axes]:
+) -> PltSubplotsType:
     """
     Plot a continous function on a domain and scatter it's discretization (x, 
     y) on the same axis.
 
     Arguments
     ---------
-    fcontinous
-        A continuous map f: R -> R^n.
-    domain
-        A valid domain: [a, b, npoints] or it's own np.ndarray (f will be 
-        evaluated here).
-    x, y
-        Points to be scatterd on the axis.
-    variable
-        What is the variable name of fcontinuous.
+    func
+        Function that will be evaluated via `func(dom)`. This output is later
+        compared against `dom` for dimensionality checks via 
+        `validate_plottable`.
+    dom
+        Domain specification. It is later converted into a `np.linspace` via 
+        `get_domain`.
+    x
+        A 1D `numpy.ndarray`.
+    y
+        A 1D or 2D `numpy.ndarray`. If the former, then `x` and `y` must have 
+        the same shape. If the latter, then the number of columns of `y` must 
+        have the same length as `x`. 
+    xlabel
+        The label of the X axis (passed via `ax.set_xlabel`).
     lighten
-        Factor to pass to `ax_lighten`.
+        Factor to pass to `ax_lighten`. It only lightens plotting lines, not
+        scatter points.
     labels
-        List of labels that are going to be passed to each ax.get_lines(), 
+        List of labels that are going to be passed to each plotting line, 
         respectively. 
     colors
-        List of labels that are going to be passed to each ax.get_lines(), 
-        respectively. 
+        List of colors that are going to be passed to each `func(dom)[i]` 
+        (`ax.plot`) and `[x, y[i]]` simoultaneously (`ax.scatter`).
 
     Returns
     -------
@@ -324,7 +428,7 @@ def compare_numerical(
     # provide some style
     ax_lighten(ax, lighten)
     ax.legend()
-    ax.set_xlabel(variable)
+    ax.set_xlabel(xlabel)
     ax.grid(True)
     fig.suptitle("Numerical (•) vs Exact solution")
 
