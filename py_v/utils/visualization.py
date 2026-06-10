@@ -2,8 +2,6 @@ from typing import Optional, Any, Literal, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.image import AxesImage
 from matplotlib.axes import Axes
 from matplotlib import rcParams
 
@@ -16,7 +14,7 @@ from .typing import (
     NumpyMatrix,
     PltSubplotsType,
 )
-from .colors import ax_lighten
+from .colors import modified_ax_color
 
 
 def init() -> None:
@@ -374,7 +372,7 @@ def compare_numerical(
         y: NumpyMatrix,
         /,
         xlabel: str = "t",
-        lighten: float = 0.3,
+        colorfactor: float = 0.3,
         labels: Optional[SingleOrList[str]] = None,
         colors: Optional[SingleOrList[str]] = None,
 ) -> PltSubplotsType:
@@ -399,9 +397,9 @@ def compare_numerical(
         have the same length as `x`. 
     xlabel
         The label of the X axis (passed via `ax.set_xlabel`).
-    lighten
-        Factor to pass to `ax_lighten`. It only lightens plotting lines, not
-        scatter points.
+    colorfactor
+        Factor to pass to `modified_ax_color`. It only lightens / darkens 
+        plotting lines, not scatter points.
     labels
         List of labels that are going to be passed to each plotting line, 
         respectively. 
@@ -416,6 +414,7 @@ def compare_numerical(
     """
 
     fig, ax = plt.subplots()
+    # TODO: remove warning when labels=None.
     map_plot(
         fcontinuous, domain, ax, 
         label=labels, color=colors
@@ -426,7 +425,8 @@ def compare_numerical(
     )
     
     # provide some style
-    ax_lighten(ax, lighten)
+    # TODO: fix green error
+    modified_ax_color(ax, colorfactor)
     ax.legend()
     ax.set_xlabel(xlabel)
     ax.grid(True)

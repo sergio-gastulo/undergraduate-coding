@@ -25,11 +25,12 @@ NumericType: TypeAlias = int | float
 NumpyVector = ndarray[tuple[int], float64]
 NumpyMatrix = ndarray[tuple[int, int], float64]
 DomainType: TypeAlias = list[NumericType, NumericType, int | None] | NumpyVector
+PercentileType = list[int, int]
 
 # a function f : R -> R^n
 ODESolution1D: TypeAlias = Callable[[float], NumpyMatrix | NumpyVector]
 
-PercentileType = list[int, int]
+# np.mean, np.min, np.max, etc...
 StatisticsNumpyFunction: TypeAlias = Callable[[ndarray], float64]
 
 #endregion =====================================================================
@@ -38,5 +39,6 @@ StatisticsNumpyFunction: TypeAlias = Callable[[ndarray], float64]
 #region ======================== plotting-types ================================
 
 PltSubplotsType = tuple[Figure, Axes]
+RGBColor: TypeAlias = tuple[float, float, float]
 
 #endregion =====================================================================
