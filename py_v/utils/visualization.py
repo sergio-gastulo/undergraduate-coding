@@ -9,7 +9,8 @@ from .utils import SingleOrList, dl_to_ld
 from .typing import (
     PercentileType, 
     DomainType, 
-    ODESolution1D,
+    Real2Real,
+    Real2Vector,
     NumpyVector,
     NumpyMatrix,
     PltSubplotsType,
@@ -297,7 +298,7 @@ def validate_plottable(
 
 
 def map_plot(
-        func: ODESolution1D,
+        func: Real2Real | Real2Vector,
         dom: DomainType,
         /,
         ax: Optional[Axes] = None,
@@ -366,7 +367,7 @@ def map_scatter(
 
 
 def compare_numerical(
-        fcontinuous: ODESolution1D,
+        fcontinuous: Real2Real | Real2Vector,
         domain: DomainType,
         x: NumpyVector,
         y: NumpyMatrix,
@@ -415,6 +416,7 @@ def compare_numerical(
 
     fig, ax = plt.subplots()
     # TODO: remove warning when labels=None.
+    # TODO: maybe pass a gen_label func instead?
     map_plot(
         fcontinuous, domain, ax, 
         label=labels, color=colors

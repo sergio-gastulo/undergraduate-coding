@@ -1,3 +1,4 @@
 __all__ = [
-    "funcreload"
+    "funcreload",
+    "mdir",
 ]

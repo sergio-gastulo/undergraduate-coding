@@ -1,6 +1,8 @@
 import sys
+import re
 from importlib import reload
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -8,6 +10,8 @@ from .typing import (
     SingleOrList, 
     F
 )
+
+ABSOLUTE_PY_V_PATH = Path(__file__).parent.parent
 
 
 def fetch_dfs(
@@ -35,7 +39,7 @@ def fetch_dfs(
         Kwargs passed to `pd.read_csv`.
     """
 
-    datadir = Path('data')
+    datadir = ABSOLUTE_PY_V_PATH / 'data'
 
     if not isinstance(dirpaths, list):
         dirpaths = [dirpaths]
@@ -114,3 +118,23 @@ def dl_to_ld(
 
     # https://stackoverflow.com/a/33046935/29272030
     return [dict(zip(d,t)) for t in zip(*d.values())]
+
+
+def mdir(
+        expr: Any,
+        strfilter: str
+) -> list[str]:
+    """
+    Search for specific methods / attributes of a given python expression.
+
+    Arguments
+    ---------
+    expr
+        The Python expression to which `dir` will be evaluated on.
+    strfilter
+        The filter to pass to all the elements from `dir(expr)`.
+    """
+    dirs = dir(expr)
+    pattern = re.compile(strfilter)
+    matches = list(filter(pattern.match, dirs))
+    return matches
