@@ -9,3 +9,8 @@ Could be useful for students of the Mathematics career at UNI, Lima.
 - `cpp` and `py`: Original code, unmodified. Included as a reference to show how my programming skills have evolved over time. Will be eventually removed after improving code. 
 
 - `cpp_v` and `py_v`: Updated versions of the code above, revised with better practices and improvements.
+
+
+### Notes
+Migrating to plotly
+https://nbviewer.org/github/fomightez/3Dscatter_plot-binder/blob/master/Plotly3d-scatter-plots.ipynb

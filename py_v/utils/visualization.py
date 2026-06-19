@@ -4,6 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib import rcParams
+import plotly.graph_objects as go
+from plotly.graph_objs._figure import BaseFigure
+from plotly.graph_objs import Scatter3d
 
 from .utils import SingleOrList, dl_to_ld
 from .typing import (
@@ -14,8 +17,12 @@ from .typing import (
     NumpyVector,
     NumpyMatrix,
     PltSubplotsType,
+    Vector2Vector,
 )
 from .colors import modified_ax_color
+
+
+GOLDENRATIO = 1.618033 
 
 
 def init() -> None:
@@ -25,6 +32,13 @@ def init() -> None:
     rcParams['text.usetex'] = True
     rcParams['font.family'] = 'serif'
     rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
+
+
+def uninit() -> None:
+    plt.style.use('default')
+    rcParams['text.usetex'] = False
+    rcParams['font.family'] = 'sans-serif'
+    rcParams['text.latex.preamble'] = ''
 
 
 def latex_float(
@@ -435,3 +449,108 @@ def compare_numerical(
     fig.suptitle("Numerical (•) vs Exact solution")
 
     return fig, ax
+
+
+
+def plot_3d(
+        multif: Vector2Vector,
+        xdomain: DomainType,
+        ydomain: DomainType,
+        /,
+        *, 
+        opacity: float = 0.3,
+        uniformcolors: Optional[SingleOrList[str]] = None,
+        dark: bool = False,
+        interactive: bool = False
+) -> BaseFigure:
+    
+    x = np.linspace(*xdomain)
+    y = np.linspace(*ydomain)
+    x, y = np.meshgrid(x, y)
+    z = multif(x, y)
+
+    data = [
+        go.Surface(x=x, y=y, z=arr,
+                   showscale=False, 
+                   opacity=opacity)
+        for arr in z
+    ]
+
+    if uniformcolors:
+        for surf, color in zip(data, uniformcolors):
+            surf.colorscale = [[0, color], [1, color]]
+            surf.showscale = False
+
+    fig = go.Figure(data=data)
+    figkwargs = {
+        "scene": {
+            "aspectmode": "manual",
+            "aspectratio": {
+                "x": 1,
+                "y": 1 / GOLDENRATIO,
+                "z": 1 / GOLDENRATIO
+            }
+        },
+        "hovermode": interactive,
+        "template": "plotly_dark" if dark else "default"
+    }
+
+    fig.update_layout(figkwargs)
+    return fig
+
+
+def gen_scattered_path_3d(
+        multif: Callable[[*tuple[float, ...]], float],
+        steps: NumpyMatrix,
+        /,
+        *,
+        showroot: bool = True,
+        colors: Optional[list[str]] = None,
+        labels: Optional[list[str]] = None,
+) -> list[Scatter3d]:
+    match steps.shape:
+        case 2, _:
+            pass
+        case _, 2:
+            steps = steps.T
+        case _:
+            raise TypeError(
+                f"Can't scatter-path an array of shape {steps.shape!r}")
+    
+    data = multif(*steps)
+    size= 3
+    paths = [
+        go.Scatter3d(
+            x=steps[0], y=steps[1], z=zres, 
+            mode='lines+markers', 
+            marker={'size': size}, 
+            line={'width': 2},
+        )
+        for zres in data
+    ]
+
+    if colors:
+        for path, color in zip(paths, colors):
+            path.marker.color = color
+            path.line.color = color
+    if labels:
+        for path, label in zip(paths, labels):
+            path.name = label
+    
+    if showroot:
+        for zres in data:
+            paths.append(
+                go.Scatter3d(x=[steps[0, -1]], 
+                             y=[steps[1, -1]], 
+                             z=[zres[-1]],
+                             mode="markers+text",
+                             text="Root",
+                             showlegend=False,
+                             textposition="top right",
+                             textfont={"color": "white"},
+                             marker={'color': 'white', 
+                                     'size': 1.5 * size})
+            )
+
+    
+    return paths

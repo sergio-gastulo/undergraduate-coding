@@ -37,7 +37,8 @@ TimeXReal2Real: TypeAlias = Callable[[float, float], NumericType]
 Real2Vector: TypeAlias = Callable[[float], NumpyVector]
 
 # a function f: R^n -> R^n
-Vector2Vector: TypeAlias = Callable[[NumpyVector], NumpyVector]
+Vector2Vector: TypeAlias = (Callable[[NumpyVector], NumpyVector] | 
+                            Callable[[*tuple[float, ...]], float])
 
 # a function f: R^n -> R^(n x n)
 Vector2Matrix: TypeAlias = Callable[[NumpyVector], NumpyMatrix]

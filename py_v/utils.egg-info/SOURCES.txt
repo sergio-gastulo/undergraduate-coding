@@ -12,4 +12,8 @@ py_v/utils/visualization.py
 py_v/utils.egg-info/PKG-INFO
 py_v/utils.egg-info/SOURCES.txt
 py_v/utils.egg-info/dependency_links.txt
+py_v/utils.egg-info/requires.txt
 py_v/utils.egg-info/top_level.txt
+py_v/utils/dsolvers/implicit_trapezoidal.py
+py_v/utils/dsolvers/runge_kutta_4.py
+py_v/utils/solvers/newton_raphson.py
