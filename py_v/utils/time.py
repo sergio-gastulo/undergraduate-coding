@@ -3,8 +3,6 @@ import time
 
 import numpy as np
 
-from .visualization import list_plot
-
 
 def _get_timer(
         how: Literal['perf', 'proc'] = 'perf',

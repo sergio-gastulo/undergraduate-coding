@@ -59,7 +59,7 @@ def wrapper(
         newcolor = darker(color, -factor)
         return newcolor
     elif factor == 0:
-        return newcolor
+        return color
 
     raise ValueError(
         f"Factor '{factor}' must lie in the range [-1 , 1]."

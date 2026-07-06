@@ -1,16 +1,18 @@
-from typing import Optional, Any, Literal, Callable
+from typing import Optional, Callable
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib import rcParams
+import plotly
+from IPython.display import display, HTML
 import plotly.graph_objects as go
-from plotly.graph_objs._figure import BaseFigure
+from plotly.graph_objects import Figure
 from plotly.graph_objs import Scatter3d
+import plotly.io as pio
 
 from .utils import SingleOrList, dl_to_ld
 from .typing import (
-    PercentileType, 
     DomainType, 
     Real2Real,
     Real2Vector,
@@ -18,11 +20,13 @@ from .typing import (
     NumpyMatrix,
     PltSubplotsType,
     Vector2Vector,
+    HowPlotType
 )
-from .colors import modified_ax_color
+from .colors import modified_ax_color, wrapper
 
 
-GOLDENRATIO = 1.618033 
+GOLDEN_RATIO = 1.618033 
+DARK_THEME = "plotly_dark"
 
 
 def init() -> None:
@@ -32,244 +36,75 @@ def init() -> None:
     rcParams['text.usetex'] = True
     rcParams['font.family'] = 'serif'
     rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
-
-
-def uninit() -> None:
-    plt.style.use('default')
-    rcParams['text.usetex'] = False
-    rcParams['font.family'] = 'sans-serif'
-    rcParams['text.latex.preamble'] = ''
-
-
-def latex_float(
-        f: float, 
-        prec: int = 2
-) -> str:
-    """Convert a float into its latex representation base \\cdot 10^exp."""
-    float_str = f"{f:.{prec}e}"
-    base, exponent = float_str.split('e')
-    latex = f"{base} \\cdot 10^{{{exponent}}}"
-    return latex
-
-
-def matrix_plot(
-        mat: NumpyMatrix,
-        percentiles: PercentileType = None,
-        **kwargs,
-) -> PltSubplotsType:
-    """
-    Plot a matrix, clipping the colormap range to i-th and j-th percentile 
-    to reduce distortion.
     
-    Arguments
-    ---------
-    mat
-        The `numpy.ndarray` of depth 2 to be plotted (not type-checked).
-    percentiles
-        The percentiles to clip the range. If `None` is provided, no statistical
-        information is shown on the plot.
-    kwargs
-        Directly passed to `matplotlib.axes.Axes.imshow`.
-    """
-
-    if percentiles is not None:
-        i, j = percentiles
-        pi, pj = np.percentile(mat, percentiles)
-    else:
-        pi = pj = None
-    mean = np.mean(mat)
-    fig, ax = plt.subplots()
-    im = ax.imshow(
-        mat, 
-        vmin=pi, 
-        vmax=pj,
-        aspect='auto',
-        **kwargs,
-    )
-    if percentiles:
-        xlabel = f"Stats: \
-            $p_{{{i}}}={latex_float(pi)}$, \
-            $\\mathrm{{mean}}={latex_float(mean)}$, \
-            $p_{{{j}}}={latex_float(pj)}$"
-        fig.supxlabel(xlabel, ha='center')
-
-    fig.colorbar(im)
-    fig.suptitle("Matrix Plot")
-    return fig, ax
-
-
-def matrix_diff_plot(
-        mat1: NumpyMatrix,
-        mat2: NumpyMatrix,
-        percentiles: PercentileType,
-        **kwargs,
-) -> PltSubplotsType:
-    """
-    Arguments
-    ---------
-    mat1, mat2
-        `numpy.ndarray`s with same shape (`ValueError` raised otherwise).
-    kwargs
-        Key-word arguments passed to `mat_plot`.
-    """
-
-    if mat1.shape != mat2.shape: 
-        raise ValueError(
-            f"Different shapes {mat1.shape} and {mat2.shape} found."
-        )
-
-    mabs = np.abs(mat1 - mat2)
-    fig, ax = matrix_plot(
-        mabs, percentiles, 
-        cmap=plt.get_cmap('hot'), **kwargs
-    )
-    i, *_, j = percentiles
-    title = f"Elementwise Difference " \
-            f"$\\|A_1 - A_2\\|_2$ " \
-            f"(Clipped to $[p_{{{i}}},\\, p_{{{j}}}]$)"
-    fig.suptitle(title)
-    return fig, ax
+    # https://stackoverflow.com/a/76599370/29272030
+    plotly.offline.init_notebook_mode()
+    display(HTML('<script type="text/javascript"'
+                 'async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_SVG">'
+                 '</script>'
+    ))
 
 
 def get_domain(
-        dim: int,
         domain: DomainType,
 ) -> NumpyVector:
     
     if isinstance(domain, list):
-        linspace = np.linspace(*domain)
-        return linspace
+        return np.linspace(*domain)
 
-    n_domain, = domain.shape
-    if dim == n_domain:
-        return domain 
-    raise ValueError(
-        f"Domain and array do not have the same length: {dim=}, {n_domain=}."
-    )
-
-
-
-def _check_same_dims(
-        x: list[np.ndarray]
-) -> None:
-    dimx, _ = x[0].shape
-    for arr in x:
-        if (arr.shape != dimx):
-            raise ValueError("Lists of np.arrays 'x' do not agree in shape.")
+    if isinstance(domain, np.ndarray):
+        return domain
     
-
-def _validate_listplot_data(
-        x: Any,
-) -> None:
-    """
-    Check that the argument is 'plottable': same dimensions accross all rows.
-    Raises an error if conditions are not satisfied.
-    """
-    if isinstance(x, list):
-        _check_same_dims(x)
-        return
-    if isinstance(x, np.ndarray):
-        if x.ndim != 2:
-            raise ValueError("Invalid 2D array.")
-        return
-    e = "Argument is not a list of numpy.ndarrays or a single numpy.ndarray."
-    raise TypeError(e)
+    raise TypeError(
+        f"Only lists or numpy ndarrays are allowed. Got: '{type(domain)}'.")
 
 
 def list_plot(
-        x: SingleOrList[np.ndarray],
-        rescale: Optional[DomainType] = None,
-        how: Literal['plot', 'scatter'] = 'plot',
-        lkwargs: list[dict[str, Any]] = None,
-) -> PltSubplotsType:
-    """
-    Plot or scatter a list of `numpy.ndarray` or a 2D `numpy.ndarray` and 
-    rescale its domain or join them if needed.
-
-    Arguments
-    ---------
-    x
-        2D data to be plotted.
-    rescale
-        Specify the domain of the X axis (if necessary)
-    how
-        Defaults to 'plot'. Set to 'scatter' to scatter instead.
-    ylim
-        Set a Y axis limit via ax.`set_ylim`.
-    lkwargs
-        A list of kwargs that is going to be passed individually to each 
-        `ax.plot` called. Must be of the same size as `x`
-    """
-
-    _validate_listplot_data(x)
-    fig, ax = plt.subplots()
-    plotter = getattr(ax, how)
-    
-    if rescale:
-        if isinstance(x, list):
-            dimx, _ = x[0].shape
-        if isinstance(x, np.ndarray):
-            _, dimx = x.shape
-        dom = get_domain(dimx, rescale)
-        for arr, kwargs in zip(x, lkwargs):
-            plotter(dom, arr, **kwargs)
-        ax.set_xlim([dom.min(), dom.max()])
-    
-    else:
-        if isinstance(arr, np.ndarray) and not lkwargs:
-            plotter(arr.T)
-        else:
-            for arr, kwargs in zip(x, lkwargs):
-                plotter(arr, **kwargs)
-    
-    return fig, ax
-
-
-def coreplot_kwargs(
-        method: Callable,
-        x: NumpyVector,
-        y: NumpyVector | NumpyMatrix,
-        kwargs: dict,
+        data: NumpyVector | NumpyMatrix,
         /,
-) -> None:
+        *,
+        domain: DomainType | None = None,
+        label: SingleOrList[str] | None = None,
+        how: HowPlotType = 'plot',
+        dark: bool = True,
+) -> Figure:
     """
-    Handle kwargs for `ax.plot` or `ax.scatter` and plot.
+    Plot or scatter a list of `numpy.ndarray`s or a 2D `numpy.ndarray` over 
+    `domain` if specified.
 
     Arguments
     ---------
-    method
-        The function call to plot.
-    x, 
-        The X axis data.
-    y
-        Data to be plotted | scattered against `x`. 
-    kwargs
-        Key-value arguments passed as *dictionary*, they're parsed via 
-        `dl_to_ld`.
-
-    Notes
-    -----
-    * Not a single type-check. All type-checks must be performed out of this 
-    function (hence the `core` prefix).
+    data
+        Plotted argument.
+    domain
+        Specify X axis (if specified).
+    how
+        Defaults to 'plot'.
     """
-        
-    if y.ndim == 1:
-        method(x, y, **kwargs)
-        return
-    if y.ndim == 2:
-        as_ld = dl_to_ld(kwargs)
-        if isinstance(as_ld, dict):
-            for arr in y:
-                method(x, arr, **kwargs)
-        else:
-            for arr, kwarg in zip(y, as_ld):
-                method(x, arr, **kwarg)
-        return
-    
-    raise ValueError(
-        f"Only 1D/2D plotting is supported. Got higher dimensional array:"
-        f"{y.shape}."
-    )
+
+    rows, cols = data.shape
+    if not domain:
+        domain = np.arange(cols)
+    else:
+        domain = get_domain(domain)
+
+    if not how or how in {'plot', 'lines'}:
+        mode = 'lines'
+    elif how in {'scatter', 'markers'}:
+        mode = 'markers'
+    elif how == 'lines+markers':
+        mode = how
+
+    labels = label if label else [None] * rows
+    template = DARK_THEME if dark else "default"
+
+    fig = go.Figure(data=[go.Scatter(x=domain, 
+                                     y=y, 
+                                     mode=mode, 
+                                     name=lab) 
+                          for lab, y in zip(labels, data)],
+                    layout=dict(template=template))
+    return fig
 
 
 def validate_plottable(
@@ -311,145 +146,39 @@ def validate_plottable(
     )
 
 
-def map_plot(
-        func: Real2Real | Real2Vector,
-        dom: DomainType,
-        /,
-        ax: Optional[Axes] = None,
-        **kwargs,
-) -> Axes:
-    """
-    Plot `func`: R -> R^n evaluated on a domain `dom`.
-    
-    Arguments
-    ---------
-    func
-        Function that will be evaluated via `func(dom)`. This output is later
-        compared against `dom` for dimensionality checks via 
-        `validate_plottable`.
-    dom
-        Domain specification. It is later converted into a `np.linspace` via 
-        `get_domain`.
-    ax
-        Optional. If `None` is provided then one is created with `plt.subplots`.
-    """
-    if isinstance(dom, list):
-        dom = np.linspace(*dom)
-    if not ax:
-        _, ax = plt.subplots()
-    
-    discretized = func(dom)
-    dom, discretized = validate_plottable(dom, discretized)
-    
-    coreplot_kwargs(
-        ax.plot, 
-        dom,
-        discretized, 
-        kwargs
-    )
-    return ax
 
-
-def map_scatter(
-        x: NumpyVector,
-        y: NumpyVector | NumpyMatrix,
-        /,
-        ax: Optional[Axes] = None,
-        **kwargs
-) -> PltSubplotsType:
-    """
-    Plot a 1D vector against a 1D or 2D array.
-
-    Arguments
-    ---------
-    x
-        A 1D `numpy.ndarray`.
-    y
-        A 1D or 2D `numpy.ndarray`. If the former, then `x` and `y` must have 
-        the same shape. If the latter, then the number of columns of `y` must 
-        have the same length as `x`. 
-    ax
-        Optional. If `None` is provided then one is created with `plt.subplots`.
-    kwargs
-        Key-value arguments passed to `coreplot_kwargs`. 
-    """
-    if not ax:
-        _, ax = plt.subplots()
-    x, y = validate_plottable(x, y)
-    coreplot_kwargs(ax.scatter, x, y, kwargs)
-    return ax
-
-
-def compare_numerical(
-        fcontinuous: Real2Real | Real2Vector,
+def plot(
+        func: Real2Vector,
         domain: DomainType,
-        x: NumpyVector,
-        y: NumpyMatrix,
-        /,
-        xlabel: str = "t",
-        colorfactor: float = 0.3,
-        labels: Optional[SingleOrList[str]] = None,
-        colors: Optional[SingleOrList[str]] = None,
-) -> PltSubplotsType:
-    """
-    Plot a continous function on a domain and scatter it's discretization (x, 
-    y) on the same axis.
-
-    Arguments
-    ---------
-    func
-        Function that will be evaluated via `func(dom)`. This output is later
-        compared against `dom` for dimensionality checks via 
-        `validate_plottable`.
-    dom
-        Domain specification. It is later converted into a `np.linspace` via 
-        `get_domain`.
-    x
-        A 1D `numpy.ndarray`.
-    y
-        A 1D or 2D `numpy.ndarray`. If the former, then `x` and `y` must have 
-        the same shape. If the latter, then the number of columns of `y` must 
-        have the same length as `x`. 
-    xlabel
-        The label of the X axis (passed via `ax.set_xlabel`).
-    colorfactor
-        Factor to pass to `modified_ax_color`. It only lightens / darkens 
-        plotting lines, not scatter points.
-    labels
-        List of labels that are going to be passed to each plotting line, 
-        respectively. 
-    colors
-        List of colors that are going to be passed to each `func(dom)[i]` 
-        (`ax.plot`) and `[x, y[i]]` simoultaneously (`ax.scatter`).
-
-    Returns
-    -------
-    fig, ax
-        As a simple plt.subplots()
-    """
-
-    fig, ax = plt.subplots()
-    # TODO: remove warning when labels=None.
-    # TODO: maybe pass a gen_label func instead?
-    map_plot(
-        fcontinuous, domain, ax, 
-        label=labels, color=colors
-    )
-    map_scatter(
-        x, y, ax, 
-        s=10, zorder=2, color=colors
-    )
+        *,
+        dark: bool = True,
+        interactive: bool = False,
+        color: Optional[SingleOrList[str]] = None,
+        label: Optional[SingleOrList[str]] = None,
+) -> Figure:
     
-    # provide some style
-    # TODO: fix green error
-    modified_ax_color(ax, colorfactor)
-    ax.legend()
-    ax.set_xlabel(xlabel)
-    ax.grid(True)
-    fig.suptitle("Numerical (•) vs Exact solution")
+    x = get_domain(domain)
+    yy = np.array(func(x))
+    x, yy = validate_plottable(x, yy)
 
-    return fig, ax
+    colors = [color] if isinstance(color, str) and yy.ndim == 1 else color
+    labels = [label] if isinstance(label, str) and yy.ndim == 1 else label
+    ys = [yy] if yy.ndim == 1 else yy
 
+    data = [go.Scatter(x=x, y=y, mode='lines') for y in ys]
+    if color:
+        for line, c in zip(data, colors):
+            line.line = dict(color=c)
+    if label:
+        for line, l in zip(data, labels):
+            line.name = l
+
+    fig = go.Figure(data=data)
+    template = DARK_THEME if dark else "default"
+    fig.update_layout(hovermode=interactive, 
+                      template=template,
+                      showlegend=label is not None,)
+    return fig
 
 
 def plot_3d(
@@ -462,7 +191,7 @@ def plot_3d(
         uniformcolors: Optional[SingleOrList[str]] = None,
         dark: bool = False,
         interactive: bool = False
-) -> BaseFigure:
+) -> Figure:
     
     x = np.linspace(*xdomain)
     y = np.linspace(*ydomain)
@@ -481,25 +210,23 @@ def plot_3d(
             surf.colorscale = [[0, color], [1, color]]
             surf.showscale = False
 
-    fig = go.Figure(data=data)
     figkwargs = {
         "scene": {
             "aspectmode": "manual",
             "aspectratio": {
                 "x": 1,
-                "y": 1 / GOLDENRATIO,
-                "z": 1 / GOLDENRATIO
+                "y": 1 / GOLDEN_RATIO,
+                "z": 1 / GOLDEN_RATIO
             }
         },
         "hovermode": interactive,
-        "template": "plotly_dark" if dark else "default"
+        "template": DARK_THEME if dark else "default"
     }
-
-    fig.update_layout(figkwargs)
+    fig = go.Figure(data=data, layout=figkwargs)
     return fig
 
 
-def gen_scattered_path_3d(
+def gen_root_path_3d(
         multif: Callable[[*tuple[float, ...]], float],
         steps: NumpyMatrix,
         /,
@@ -515,10 +242,10 @@ def gen_scattered_path_3d(
             steps = steps.T
         case _:
             raise TypeError(
-                f"Can't scatter-path an array of shape {steps.shape!r}")
+                f"Can't scatter-path an array with shape={steps.shape!r}")
     
     data = multif(*steps)
-    size= 3
+    size = 3
     paths = [
         go.Scatter3d(
             x=steps[0], y=steps[1], z=zres, 
@@ -551,6 +278,46 @@ def gen_scattered_path_3d(
                              marker={'color': 'white', 
                                      'size': 1.5 * size})
             )
-
-    
+            
     return paths
+
+
+
+def gen_disc_scatter(
+        fig: Figure,
+        tt: NumpyVector,
+        discretization: NumpyMatrix,
+        /,
+        *,
+        opacity: float = 0.5,
+        fetch_colors: bool = False
+) -> Figure:
+    
+    tt, ys = validate_plottable(tt, discretization)
+    if ys.ndim == 1: 
+        ys = [ys]
+
+    if fetch_colors:
+        colors = [trace.line.color for trace in fig.data]
+    else:
+        colors = pio.templates[pio.templates.default].layout.colorway
+    ncols = len(colors)
+
+    for i, trace in enumerate(fig.data):
+        if (line := trace.line):
+            c = wrapper(colors[i % ncols], opacity)
+            line.color = f"rgb{c}"
+    
+    markersize = 6
+    for y, c in zip(ys, colors):
+        fig.add_trace(go.Scatter(x=tt, 
+                                y=y, 
+                                mode='markers+lines',
+                                marker=dict(color=c,
+                                            size=markersize),
+                                line=dict(color=c,
+                                          width=markersize / 4.5,
+                                          shape='hvh'),
+                                showlegend=False))
+    fig.data = fig.data[::-1]
+    return fig

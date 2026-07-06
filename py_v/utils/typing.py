@@ -1,7 +1,8 @@
 from typing import (
     Callable, 
     TypeAlias, 
-    TypeVar
+    TypeVar,
+    Literal
 )
 
 from numpy import ndarray, float64
@@ -56,6 +57,7 @@ StatisticsNumpyFunction: TypeAlias = Callable[[ndarray], float64]
 
 PltSubplotsType = tuple[Figure, Axes]
 RGBColor: TypeAlias = tuple[float, float, float]
+HowPlotType = Literal['plot', 'scatter', 'lines', 'marker', 'lines+markers']
 
 #endregion =====================================================================
 
