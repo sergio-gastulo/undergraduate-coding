@@ -2,15 +2,18 @@
 
 A collection of code from my undergraduate studies in Mathematics. Nothing fancy -- just homework and assignments I worked on during college, now revisited and (hopefully) improved.
 
-Could be useful for students of the Mathematics career at UNI, Lima. 
+Could be useful for students of the Mathematics career at UNI (Lima). 
 
-### Directories
+## Installation
+```
+git clone https://github.com/sergio-gastulo/undergraduate-coding.git
+cd /path/to/repo
+uv venv
+uv pip install -e .
+```
 
-- `cpp` and `py`: Original code, unmodified. Included as a reference to show how my programming skills have evolved over time. Will be eventually removed after improving code. 
-
-- `cpp_v` and `py_v`: Updated versions of the code above, revised with better practices and improvements.
-
-
-### Notes
-Migrating to plotly
-https://nbviewer.org/github/fomightez/3Dscatter_plot-binder/blob/master/Plotly3d-scatter-plots.ipynb
+## Notes
+- Pending:
+    * https://colab.research.google.com/drive/1w9wZqLUJsNErAiBbLoQZaz6HygOplZPM#scrollTo=xhH5nJpD8nfH
+    * https://colab.research.google.com/drive/1jUpt3MbouG9lDC2gYzHdnXoRF4SpY3Id#scrollTo=gGqr4yoMP8pz
+    * https://colab.research.google.com/drive/1f4qmp0PMmFYEh38nLdDzbqhi-X4Jozcm#scrollTo=gGqr4yoMP8pz

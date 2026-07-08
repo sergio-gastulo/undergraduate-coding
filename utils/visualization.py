@@ -11,18 +11,16 @@ from plotly.graph_objects import Figure
 from plotly.graph_objs import Scatter3d
 import plotly.io as pio
 
-from .utils import SingleOrList, dl_to_ld
+from .utils import SingleOrList
 from .typing import (
     DomainType, 
-    Real2Real,
     Real2Vector,
     NumpyVector,
     NumpyMatrix,
-    PltSubplotsType,
     Vector2Vector,
     HowPlotType
 )
-from .colors import modified_ax_color, wrapper
+from .colors import wrapper
 
 
 GOLDEN_RATIO = 1.618033 
@@ -94,6 +92,8 @@ def list_plot(
         mode = 'markers'
     elif how == 'lines+markers':
         mode = how
+    else:
+        raise ValueError(f"Argument {mode=!r} must belong to specified set.")
 
     labels = label if label else [None] * rows
     template = DARK_THEME if dark else "default"

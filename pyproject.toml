@@ -6,10 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "utils"
 version = "0.1.0"
 dependencies = [
+    "matplotlib>=3.11.0",
     "nbformat>=5.10.4",
+    "numpy>=2.5.1",
+    "pandas>=3.0.3",
     "plotly>=6.8.0",
+    "scipy>=1.18.0",
 ]
 
 [tool.setuptools.packages.find]
-where = ["py_v"]
 include = ["utils*"]

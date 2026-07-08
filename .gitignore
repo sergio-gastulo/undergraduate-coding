@@ -2,5 +2,5 @@
 .vscode/
 unnamed
 .venv/
-py_v/data/
+*/data/
 **/__pycache__/**

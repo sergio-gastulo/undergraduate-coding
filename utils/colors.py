@@ -78,3 +78,21 @@ def modified_ax_color(
         color = line.get_color()
         newcolor = wrapper(color, factor)
         line.set_color(newcolor)
+
+
+def blend(
+        basecolor: RGBColor, 
+        targetcolor: RGBColor,
+        factor: float,
+        asint: bool = False,
+) -> RGBColor:
+    
+    if factor < 0 or factor > 1:
+        raise ValueError(f"The following must hold: {factor=} \\in [0, 1].")
+
+    base = mc.to_rgb(basecolor)
+    target = mc.to_rgb(targetcolor)
+    color = ((1 - factor)*b + factor*t for b, t in zip(base, target))
+    if asint:
+        return tuple(int(255 * c) for c in color)
+    return tuple(color)
