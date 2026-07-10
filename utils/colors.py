@@ -1,7 +1,6 @@
 import colorsys
 
 import matplotlib.colors as mc
-from matplotlib.axes import Axes
 
 from .typing import RGBColor
 
@@ -64,20 +63,6 @@ def wrapper(
     raise ValueError(
         f"Factor '{factor}' must lie in the range [-1 , 1]."
     )
-
-
-def modified_ax_color(
-        ax: Axes,
-        /,
-        factor: float,
-) -> RGBColor:
-    """
-    Modify the color of all the lines for a given axis.
-    """
-    for line in ax.get_lines():
-        color = line.get_color()
-        newcolor = wrapper(color, factor)
-        line.set_color(newcolor)
 
 
 def blend(

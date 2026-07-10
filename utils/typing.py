@@ -2,62 +2,46 @@ from typing import (
     Callable, 
     TypeAlias, 
     TypeVar,
-    Literal
+    Literal,
 )
 
-from numpy import ndarray, float64
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
+from numpy import ndarray
 
 #region =========================== generics ===================================
 
 T_ = TypeVar("T_")
 SingleOrList: TypeAlias = list[T_] | T_
-
 F = TypeVar('F', bound=Callable)
-
-NumericType: TypeAlias = int | float | float64
 
 #endregion =====================================================================
 
 
-#region ========================= numpy-types  =================================
+#region ========================= vector types =================================
 
-NumpyVector = ndarray[tuple[int], float64]
-NumpyMatrix = ndarray[tuple[int, int], float64]
-DomainType: TypeAlias = list[NumericType, NumericType, int | None] | NumpyVector
+PythonVector = tuple[float, ...]
+NumpyVector = ndarray[tuple[int], float]
+NumpyMatrix = ndarray[tuple[int, int], float]
+DomainType: TypeAlias = list[float, float, int | None] | NumpyVector
 PercentileType = list[int, int]
 
+RealMapping: TypeAlias = Callable[[float], T_]  # R -> ran
+TimeRealMapping: TypeAlias = Callable[[float, float], T_]  # R^>0 x R -> ran
+VectorMapping: TypeAlias = (Callable[[*PythonVector], T_] | 
+                            Callable[[NumpyVector], T_])  # R^n -> ran
 
-# f: R -> R
-Real2Real: TypeAlias = Callable[[float], NumericType]
-# f: R x R -> R
-TimeXReal2Real: TypeAlias = Callable[[float, float], NumericType]
-
-# a function f : R -> R^n
-Real2Vector: TypeAlias = Callable[[float], NumpyVector]
-
-# a function f: R^n -> R^n
-Vector2Vector: TypeAlias = (Callable[[NumpyVector], NumpyVector] | 
-                            Callable[[*tuple[float, ...]], float])
-
-# a function f: R^n -> R^(n x n)
-Vector2Matrix: TypeAlias = Callable[[NumpyVector], NumpyMatrix]
-
-# a function f: R x R^n -> R^n
-TimeXVector2Vector: TypeAlias = Callable[[float, NumpyVector], NumpyVector]
+# R^>0 x R^n -> ran
+TimeVectorMapping: TypeAlias = Callable[[float, NumpyVector | PythonVector], T_]
 
 # np.mean, np.min, np.max, etc...
-StatisticsNumpyFunction: TypeAlias = Callable[[ndarray], float64]
+StatisticsNumpyFunction: TypeAlias = Callable[[NumpyVector | PythonVector], float]
 
 #endregion =====================================================================
 
 
 #region ======================== plotting-types ================================
 
-PltSubplotsType = tuple[Figure, Axes]
 RGBColor: TypeAlias = tuple[float, float, float]
-HowPlotType = Literal['plot', 'scatter', 'lines', 'marker', 'lines+markers']
+type HowPlotType = Literal['plot', 'scatter', 'lines', 'marker', 'lines+markers']
 
 #endregion =====================================================================
 
